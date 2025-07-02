@@ -48,14 +48,14 @@ fn main() {
             // these are used to set the build name and plugin name
             let build_name = cargo_toml.package.metadata.jk_plugin.build_name;
             let plugin_name = cargo_toml.package.metadata.jk_plugin.plugin_name;
-            println!("Build Name: {}", build_name);
-            println!("Plugin Name: {}", plugin_name);
+            eprintln!("Build Name: {}", build_name);
+            eprintln!("Plugin Name: {}", plugin_name);
             let mut command = Command::new("cargo");
             command.arg("build");
             command.arg("--message-format");
             command.arg("json-render-diagnostics");
             command.stdout(Stdio::piped());
-            println!("Executing: {:?}", command);
+            eprintln!("Executing: {:?}", command);
             match command.spawn() {
                 Ok(mut child) => {
                     let reader = io::BufReader::new(child.stdout.take().unwrap());
@@ -78,8 +78,8 @@ fn main() {
                         let new_dll_path = dllfiledir.join(&plugin_name).with_extension("aex");
                         std::fs::rename(dllfilepath, &new_dll_path)
                             .expect("Failed to rename DLL file");
-                        println!("Renamed DLL to: {}", new_dll_path.display());
-                        println!("Build succeeded.");
+                        eprintln!("Renamed DLL to: {}", new_dll_path.display());
+                        eprintln!("Build succeeded.");
                     } else {
                         eprintln!("Build failed with status: {}", status);
                         std::process::exit(1);
