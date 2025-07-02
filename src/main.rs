@@ -3,6 +3,7 @@ use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::env;
 use std::io;
 use std::process::Command;
@@ -28,6 +29,11 @@ struct JkPluginMetadata {
     plugin_name: String,
 }
 
+#[derive(Debug, Serialize)]
+struct AexFileOutput {
+    aex_file: String,
+}
+
 fn main() {
     let Cargo::Input(input) = Cargo::parse();
     // let ostype = env::consts::OS;
@@ -35,7 +41,7 @@ fn main() {
     let aesdk_root =
         env::var("AESDK_ROOT").expect("AESDK_ROOT is not defined as an environment variable");
     match input.cmd {
-        JKCommand::Build(_) => {
+        JKCommand::Build(build) => {
             // load Cargo.toml and read the metadata
             let current_dir = env::current_dir().expect("Failed to get current directory");
             let cargo_toml_path = current_dir.join("Cargo.toml");
@@ -80,6 +86,20 @@ fn main() {
                             .expect("Failed to rename DLL file");
                         eprintln!("Renamed DLL to: {}", new_dll_path.display());
                         eprintln!("Build succeeded.");
+                        // check format argument
+                        match build.format {
+                            command::Format::Json => {
+                                let aex_file = AexFileOutput {
+                                    aex_file: new_dll_path.to_string_lossy().to_string(),
+                                };
+                                let output = serde_json::to_string(&aex_file)
+                                    .expect("Failed to serialize output to JSON");
+                                println!("{}", output);
+                            }
+                            command::Format::None => {
+                                // nothing to do
+                            }
+                        }
                     } else {
                         eprintln!("Build failed with status: {}", status);
                         std::process::exit(1);

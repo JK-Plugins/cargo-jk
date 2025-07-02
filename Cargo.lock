@@ -74,6 +74,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "serde",
+ "serde_json",
  "toml",
  "windows",
 ]
