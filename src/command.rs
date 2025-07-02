@@ -24,6 +24,8 @@ pub enum JKCommand {
     Build(Build),
     /// Command to move a file
     MV(MV),
+    /// Command to build and install a JK plugin
+    Install(Install),
 }
 
 #[derive(Args, Debug)]
@@ -36,6 +38,10 @@ pub struct Build {
 pub struct MV {
     /// The source file to move
     pub src: String,
+}
+
+#[derive(Args, Debug)]
+pub struct Install {
 }
 
 use clap::ValueEnum;

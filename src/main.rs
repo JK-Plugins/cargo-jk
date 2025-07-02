@@ -1,5 +1,5 @@
 mod command;
-use crate::command::MV;
+use crate::command::{MV, Install};
 use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
 use clap::Parser;
@@ -32,7 +32,7 @@ struct JkPluginMetadata {
     plugin_name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct AexFileOutput {
     aex_file: String,
 }
@@ -129,6 +129,9 @@ fn main() {
                 platform::elevate_self();
             }
         },
+        JKCommand::Install(_install) => {
+            install_command();
+        },
     }
 }
 
@@ -147,6 +150,92 @@ fn mv_command(mv: &MV) -> io::Result<()> {
         .map_err(|e| io::Error::other(format!("Failed to move file: {e}")))?;
 
     Ok(())
+}
+
+fn install_command() {
+    eprintln!("Starting install process...");
+    
+    // Detect if we're running in development mode (cargo run -- jk) or production mode (cargo jk)
+    let current_exe = env::current_exe().expect("Failed to get current executable path");
+    let is_dev_mode = current_exe.to_string_lossy().contains("target");
+    
+    let (cmd_prefix, cmd_args): (&str, Vec<&str>) = if is_dev_mode {
+        ("cargo", vec!["run", "--", "jk"])
+    } else {
+        ("cargo", vec!["jk"])
+    };
+    
+    // Step 1: Execute build command
+    let build_cmd = format!("{} {} build --format json", cmd_prefix, cmd_args.join(" "));
+    eprintln!("Running: {}", build_cmd);
+    
+    let mut build_command = Command::new(cmd_prefix);
+    for arg in &cmd_args {
+        build_command.arg(arg);
+    }
+    let build_output = build_command
+        .arg("build")
+        .arg("--format")
+        .arg("json")
+        .output();
+    
+    match build_output {
+        Ok(output) => {
+            if !output.status.success() {
+                eprintln!("Build failed: {}", String::from_utf8_lossy(&output.stderr));
+                std::process::exit(1);
+            }
+            
+            // Step 2: Parse the JSON output to get the aex file path
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("Build output: {}", stdout);
+            
+            match serde_json::from_str::<AexFileOutput>(&stdout) {
+                Ok(aex_output) => {
+                    let aex_file = &aex_output.aex_file;
+                    eprintln!("Built aex file: {}", aex_file);
+                    
+                    // Step 3: Execute mv command
+                    let mv_cmd = format!("{} {} mv {}", cmd_prefix, cmd_args.join(" "), aex_file);
+                    eprintln!("Running: {}", mv_cmd);
+                    
+                    let mut mv_command = Command::new(cmd_prefix);
+                    for arg in &cmd_args {
+                        mv_command.arg(arg);
+                    }
+                    let mv_output = mv_command
+                        .arg("mv")
+                        .arg(aex_file)
+                        .output();
+                    
+                    match mv_output {
+                        Ok(mv_result) => {
+                            if mv_result.status.success() {
+                                eprintln!("Install completed successfully!");
+                                eprintln!("{}", String::from_utf8_lossy(&mv_result.stdout));
+                            } else {
+                                eprintln!("Move failed: {}", String::from_utf8_lossy(&mv_result.stderr));
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to execute move command: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to parse build output JSON: {}", e);
+                    eprintln!("Raw output: {}", stdout);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to execute build command: {}", e);
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
