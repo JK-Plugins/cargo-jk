@@ -24,8 +24,8 @@ struct PackageMetadata {
 
 #[derive(Debug, Deserialize)]
 struct AfterEffectsMetadata {
-    buildname: String,
-    pluginname: String,
+    build_name: String,
+    plugin_name: String,
 }
 
 fn main() {
