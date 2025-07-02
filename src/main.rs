@@ -1,16 +1,16 @@
 mod command;
-use crate::command::{MV, Install};
+use crate::command::MV;
 use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::{env, fs};
 use std::io;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
+use std::{env, fs};
 #[derive(Debug, Deserialize)]
 struct CargoToml {
     package: Package,
@@ -32,7 +32,7 @@ struct JkPluginMetadata {
     plugin_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct AexFileOutput {
     aex_file: String,
 }
@@ -52,6 +52,8 @@ fn main() {
                 std::fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
             let cargo_toml: CargoToml =
                 toml::from_str(&cargo_toml_content).expect("Failed to parse Cargo.toml");
+
+            let os_type = env::consts::OS;
 
             // build name and plugin name
             // these are used to set the build name and plugin name
@@ -80,32 +82,45 @@ fn main() {
                         }
                     }
                     let status = child.wait().expect("Failed to wait on child process");
-                    if status.success() {
-                        let dllfilepath = filename.as_ref().expect("No artifact filename found");
-                        let dllfiledir = dllfilepath.parent().unwrap();
-                        // rename the DLL file to the plugin name
-                        let new_dll_path = dllfiledir.join(&plugin_name).with_extension("aex");
-                        std::fs::rename(dllfilepath, &new_dll_path)
-                            .expect("Failed to rename DLL file");
-                        eprintln!("Renamed DLL to: {}", new_dll_path.display());
-                        eprintln!("Build succeeded.");
-                        // check format argument
-                        match build.format {
-                            command::Format::Json => {
-                                let aex_file = AexFileOutput {
-                                    aex_file: new_dll_path.to_string_lossy().to_string(),
-                                };
-                                let output = serde_json::to_string(&aex_file)
-                                    .expect("Failed to serialize output to JSON");
-                                println!("{}", output);
-                            }
-                            command::Format::None => {
-                                // nothing to do
+                    match os_type {
+                        "windows" => {
+                            if status.success() {
+                                let dllfilepath =
+                                    filename.as_ref().expect("No artifact filename found");
+                                let dllfiledir = dllfilepath.parent().unwrap();
+                                // rename the DLL file to the plugin name
+                                let new_dll_path =
+                                    dllfiledir.join(&plugin_name).with_extension("aex");
+                                std::fs::rename(dllfilepath, &new_dll_path)
+                                    .expect("Failed to rename DLL file");
+                                eprintln!("Renamed DLL to: {}", new_dll_path.display());
+                                eprintln!("Build succeeded.");
+                                // check format argument
+                                match build.format {
+                                    command::Format::Json => {
+                                        let aex_file = AexFileOutput {
+                                            aex_file: new_dll_path.to_string_lossy().to_string(),
+                                        };
+                                        let output = serde_json::to_string(&aex_file)
+                                            .expect("Failed to serialize output to JSON");
+                                        println!("{}", output);
+                                    }
+                                    command::Format::None => {
+                                        // nothing to do
+                                    }
+                                }
+                            } else {
+                                eprintln!("Build failed with status: {}", status);
+                                std::process::exit(1);
                             }
                         }
-                    } else {
-                        eprintln!("Build failed with status: {}", status);
-                        std::process::exit(1);
+                        "macos" => {
+                            todo!("MacOS build is not implemented yet");
+                        }
+                        _ => {
+                            eprintln!("Unsupported operating system: {}", os_type);
+                            std::process::exit(1);
+                        }
                     }
                 }
                 Err(e) => {
@@ -114,7 +129,9 @@ fn main() {
                 }
             }
         }
-        JKCommand::MV(mv) => {
+        JKCommand::MV(mv) =>
+        {
+            #[cfg(target_os = "windows")]
             if platform::is_elevated() {
                 match mv_command(&mv) {
                     Ok(_) => eprintln!("File moved successfully."),
@@ -128,10 +145,8 @@ fn main() {
                 eprintln!("Not running with elevated privileges. Attempting to elevate...");
                 platform::elevate_self();
             }
-        },
-        JKCommand::Install(_install) => {
-            install_command();
-        },
+        }
+        JKCommand::Install(install) => todo!(),
     }
 }
 
@@ -146,96 +161,9 @@ fn mv_command(mv: &MV) -> io::Result<()> {
     ))?;
     let target = target_dir.join(filename);
 
-    fs::copy(src, target)
-        .map_err(|e| io::Error::other(format!("Failed to move file: {e}")))?;
+    fs::copy(src, target).map_err(|e| io::Error::other(format!("Failed to move file: {e}")))?;
 
     Ok(())
-}
-
-fn install_command() {
-    eprintln!("Starting install process...");
-    
-    // Detect if we're running in development mode (cargo run -- jk) or production mode (cargo jk)
-    let current_exe = env::current_exe().expect("Failed to get current executable path");
-    let is_dev_mode = current_exe.to_string_lossy().contains("target");
-    
-    let (cmd_prefix, cmd_args): (&str, Vec<&str>) = if is_dev_mode {
-        ("cargo", vec!["run", "--", "jk"])
-    } else {
-        ("cargo", vec!["jk"])
-    };
-    
-    // Step 1: Execute build command
-    let build_cmd = format!("{} {} build --format json", cmd_prefix, cmd_args.join(" "));
-    eprintln!("Running: {}", build_cmd);
-    
-    let mut build_command = Command::new(cmd_prefix);
-    for arg in &cmd_args {
-        build_command.arg(arg);
-    }
-    let build_output = build_command
-        .arg("build")
-        .arg("--format")
-        .arg("json")
-        .output();
-    
-    match build_output {
-        Ok(output) => {
-            if !output.status.success() {
-                eprintln!("Build failed: {}", String::from_utf8_lossy(&output.stderr));
-                std::process::exit(1);
-            }
-            
-            // Step 2: Parse the JSON output to get the aex file path
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            eprintln!("Build output: {}", stdout);
-            
-            match serde_json::from_str::<AexFileOutput>(&stdout) {
-                Ok(aex_output) => {
-                    let aex_file = &aex_output.aex_file;
-                    eprintln!("Built aex file: {}", aex_file);
-                    
-                    // Step 3: Execute mv command
-                    let mv_cmd = format!("{} {} mv {}", cmd_prefix, cmd_args.join(" "), aex_file);
-                    eprintln!("Running: {}", mv_cmd);
-                    
-                    let mut mv_command = Command::new(cmd_prefix);
-                    for arg in &cmd_args {
-                        mv_command.arg(arg);
-                    }
-                    let mv_output = mv_command
-                        .arg("mv")
-                        .arg(aex_file)
-                        .output();
-                    
-                    match mv_output {
-                        Ok(mv_result) => {
-                            if mv_result.status.success() {
-                                eprintln!("Install completed successfully!");
-                                eprintln!("{}", String::from_utf8_lossy(&mv_result.stdout));
-                            } else {
-                                eprintln!("Move failed: {}", String::from_utf8_lossy(&mv_result.stderr));
-                                std::process::exit(1);
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to execute move command: {}", e);
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Failed to parse build output JSON: {}", e);
-                    eprintln!("Raw output: {}", stdout);
-                    std::process::exit(1);
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to execute build command: {}", e);
-            std::process::exit(1);
-        }
-    }
 }
 
 #[cfg(target_os = "windows")]
@@ -244,8 +172,13 @@ mod platform {
     use std::iter::once;
     use std::os::windows::ffi::OsStrExt;
     use windows::{
+        Win32::{
+            Foundation::*,
+            Security::*,
+            System::Threading::*,
+            UI::{Shell::*, WindowsAndMessaging::SW_SHOW},
+        },
         core::*,
-        Win32::{Foundation::*, Security::*, System::Threading::*, UI::{Shell::*, WindowsAndMessaging::SW_SHOW}},
     };
 
     pub fn is_elevated() -> bool {
@@ -260,7 +193,9 @@ mod platform {
                     Some(&mut elevation as *mut _ as *mut core::ffi::c_void),
                     size,
                     &mut size,
-                ).is_ok() {
+                )
+                .is_ok()
+                {
                     CloseHandle(token).unwrap();
                     return elevation.TokenIsElevated != 0;
                 }
@@ -269,51 +204,51 @@ mod platform {
         false
     }
 
-pub fn elevate_self() {
-    let exe_path = std::env::current_exe().unwrap();
+    pub fn elevate_self() {
+        let exe_path = std::env::current_exe().unwrap();
 
-    let args: Vec<String> = std::env::args().skip(1).collect(); // 最初は自分自身なので skip
-    let arg_str = args
-        .into_iter()
-        .map(|arg| {
-            if arg.contains(' ') {
-                format!("\"{arg}\"")
+        let args: Vec<String> = std::env::args().skip(1).collect(); // 最初は自分自身なので skip
+        let arg_str = args
+            .into_iter()
+            .map(|arg| {
+                if arg.contains(' ') {
+                    format!("\"{arg}\"")
+                } else {
+                    arg
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let cmd = OsStr::new(exe_path.to_str().unwrap())
+            .encode_wide()
+            .chain(once(0))
+            .collect::<Vec<u16>>();
+
+        let params = OsStr::new(&arg_str)
+            .encode_wide()
+            .chain(once(0))
+            .collect::<Vec<u16>>();
+
+        let mut sei = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            lpVerb: PCWSTR(w!("runas").as_ptr()),
+            lpFile: PCWSTR(cmd.as_ptr()),
+            lpParameters: PCWSTR(params.as_ptr()),
+            nShow: SW_SHOW.0,
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            ..Default::default()
+        };
+
+        unsafe {
+            if ShellExecuteExW(&mut sei).is_ok() {
+                WaitForSingleObject(sei.hProcess, INFINITE);
+                CloseHandle(sei.hProcess).unwrap();
             } else {
-                arg
+                eprintln!("Failed to elevate via UAC");
             }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    let cmd = OsStr::new(exe_path.to_str().unwrap())
-        .encode_wide()
-        .chain(once(0))
-        .collect::<Vec<u16>>();
-
-    let params = OsStr::new(&arg_str)
-        .encode_wide()
-        .chain(once(0))
-        .collect::<Vec<u16>>();
-
-    let mut sei = SHELLEXECUTEINFOW {
-        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-        lpVerb: PCWSTR(w!("runas").as_ptr()),
-        lpFile: PCWSTR(cmd.as_ptr()),
-        lpParameters: PCWSTR(params.as_ptr()),
-        nShow: SW_SHOW.0,
-        fMask: SEE_MASK_NOCLOSEPROCESS,
-        ..Default::default()
-    };
-
-    unsafe {
-        if ShellExecuteExW(&mut sei).is_ok() {
-            WaitForSingleObject(sei.hProcess, INFINITE);
-            CloseHandle(sei.hProcess).unwrap();
-        } else {
-            eprintln!("Failed to elevate via UAC");
         }
-    }
 
-    std::process::exit(0);
-}
+        std::process::exit(0);
+    }
 }
