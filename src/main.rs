@@ -20,13 +20,13 @@ struct Package {
 
 #[derive(Debug, Deserialize)]
 struct PackageMetadata {
-    aftereffects: AfterEffectsMetadata,
+    jk_plugin: JkPluginMetadata,
 }
 
 #[derive(Debug, Deserialize)]
-struct AfterEffectsMetadata {
-    buildname: String,
-    pluginname: String,
+struct JkPluginMetadata {
+    build_name: String,
+    plugin_name: String,
 }
 
 fn main() {
@@ -47,17 +47,16 @@ fn main() {
 
             // build name and plugin name
             // these are used to set the build name and plugin name
-            let buildname = cargo_toml.package.metadata.aftereffects.buildname;
-            let pluginname = cargo_toml.package.metadata.aftereffects.pluginname;
-            println!("Build Name: {}", buildname);
-            println!("Plugin Name: {}", pluginname);
+            let build_name = cargo_toml.package.metadata.jk_plugin.build_name;
+            let plugin_name = cargo_toml.package.metadata.jk_plugin.plugin_name;
+            eprintln!("Build Name: {}", build_name);
+            eprintln!("Plugin Name: {}", plugin_name);
             let mut command = Command::new("cargo");
             command.arg("build");
             command.arg("--message-format");
             command.arg("json-render-diagnostics");
             command.stdout(Stdio::piped());
-            println!("Executing: {:?}", command);
-
+            eprintln!("Executing: {:?}", command);
             match command.spawn() {
                 Ok(mut child) => {
                     let reader = io::BufReader::new(child.stdout.take().unwrap());
@@ -77,11 +76,11 @@ fn main() {
                         let dllfilepath = filename.as_ref().expect("No artifact filename found");
                         let dllfiledir = dllfilepath.parent().unwrap();
                         // rename the DLL file to the plugin name
-                        let new_dll_path = dllfiledir.join(&pluginname).with_extension("aex");
+                        let new_dll_path = dllfiledir.join(&plugin_name).with_extension("aex");
                         std::fs::rename(dllfilepath, &new_dll_path)
                             .expect("Failed to rename DLL file");
-                        println!("Renamed DLL to: {}", new_dll_path.display());
-                        println!("Build succeeded.");
+                        eprintln!("Renamed DLL to: {}", new_dll_path.display());
+                        eprintln!("Build succeeded.");
                         // check format argument
                         if let Some(format) = build.format {
                             if format == "json" {
