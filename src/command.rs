@@ -22,12 +22,20 @@ pub struct Input {
 pub enum JKCommand {
     /// Command to build a JK plugin
     Build(Build),
+    /// Command to move a file
+    MV(MV),
 }
 
 #[derive(Args, Debug)]
 pub struct Build {
     #[arg(long, default_value = "none")]
     pub format: Format,
+}
+
+#[derive(Args, Debug)]
+pub struct MV {
+    /// The source file to move
+    pub src: String,
 }
 
 use clap::ValueEnum;
