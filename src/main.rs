@@ -1,5 +1,5 @@
 mod command;
-use crate::command::MV;
+use crate::command::{MV, Install};
 use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
 use clap::Parser;
@@ -129,6 +129,9 @@ fn main() {
                 platform::elevate_self();
             }
         },
+        JKCommand::Install(_install) => {
+            install_command();
+        },
     }
 }
 
@@ -147,6 +150,72 @@ fn mv_command(mv: &MV) -> io::Result<()> {
         .map_err(|e| io::Error::other(format!("Failed to move file: {e}")))?;
 
     Ok(())
+}
+
+fn install_command() {
+    eprintln!("Starting install process...");
+    
+    // Step 1: Execute `cargo jk build --format json`
+    eprintln!("Running: cargo jk build --format json");
+    let build_output = Command::new("cargo")
+        .arg("jk")
+        .arg("build")
+        .arg("--format")
+        .arg("json")
+        .output();
+    
+    match build_output {
+        Ok(output) => {
+            if !output.status.success() {
+                eprintln!("Build failed: {}", String::from_utf8_lossy(&output.stderr));
+                std::process::exit(1);
+            }
+            
+            // Step 2: Parse the JSON output to get the aex file path
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("Build output: {}", stdout);
+            
+            match serde_json::from_str::<AexFileOutput>(&stdout) {
+                Ok(aex_output) => {
+                    let aex_file = &aex_output.aex_file;
+                    eprintln!("Built aex file: {}", aex_file);
+                    
+                    // Step 3: Execute `cargo jk mv [path]`
+                    eprintln!("Running: cargo jk mv {}", aex_file);
+                    let mv_output = Command::new("cargo")
+                        .arg("jk")
+                        .arg("mv")
+                        .arg(aex_file)
+                        .output();
+                    
+                    match mv_output {
+                        Ok(mv_result) => {
+                            if mv_result.status.success() {
+                                eprintln!("Install completed successfully!");
+                                eprintln!("{}", String::from_utf8_lossy(&mv_result.stdout));
+                            } else {
+                                eprintln!("Move failed: {}", String::from_utf8_lossy(&mv_result.stderr));
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to execute move command: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to parse build output JSON: {}", e);
+                    eprintln!("Raw output: {}", stdout);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to execute build command: {}", e);
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
