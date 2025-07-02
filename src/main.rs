@@ -1,15 +1,15 @@
 mod command;
 use crate::command::MV;
 use crate::command::{Cargo, JKCommand};
-use cargo_metadata::Message;
+use cargo_metadata::{Artifact, Message};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::io;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
+use std::{default, io};
 use std::{env, fs};
 #[derive(Debug, Deserialize)]
 struct CargoToml {
@@ -71,6 +71,7 @@ fn main() {
                 Ok(mut child) => {
                     let reader = io::BufReader::new(child.stdout.take().unwrap());
                     let mut filename: Option<std::path::PathBuf> = None;
+
                     for message in cargo_metadata::Message::parse_stream(reader) {
                         match message.unwrap() {
                             Message::CompilerArtifact(artifact) => {
@@ -115,7 +116,33 @@ fn main() {
                             }
                         }
                         "macos" => {
-                            todo!("MacOS build is not implemented yet");
+                            // set -eはrustでエラー処理を行うので不要
+                            // echo "Creating plugin bundle"
+                            eprintln!("Creating plugin bundle");
+
+                            // filenameが"../target/debug/lib(build_name).dylib"なので調整とか
+                            let lib_dylib_path =
+                                filename.as_ref().expect("No artifact filename found");
+                            let lib_dylib_dir = lib_dylib_path.parent().unwrap();
+
+                            // rm -Rf "{{TargetDir}}/{{profile}}/{{PluginName}}.plugin"
+                            let plugin_path =
+                                lib_dylib_dir.join(&plugin_name).with_extension("plugin");
+
+                            if !plugin_path.exists() {
+                                std::fs::remove_file(&plugin_path)
+                                    .expect("Failed to remove old plugin bundle");
+                            }
+
+                            // mkdir -p "{{TargetDir}}/{{profile}}/{{PluginName}}.plugin/Contents/Resources"
+                            // mkdir -p "{{TargetDir}}/{{profile}}/{{PluginName}}.plugin/Contents/MacOS"
+                            let plugin_resource_path = plugin_path.join("Contents/Resources");
+                            let plugin_macos_path = plugin_path.join("Contents/MaxOS");
+
+                            std::fs::create_dir(&plugin_resource_path)
+                                .expect("Failed to create plugin Resources directory");
+                            std::fs::create_dir(&plugin_macos_path)
+                                .expect("Failed to create plugin MacOS directory");
                         }
                         _ => {
                             eprintln!("Unsupported operating system: {}", os_type);
