@@ -4,6 +4,7 @@ use clap::{Args, Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "cargo", bin_name = "cargo")]
 pub enum Cargo {
+    /// Command to build JK plugins
     #[command(name = "jk")]
     Input(Input),
 }
@@ -19,12 +20,22 @@ pub struct Input {
 
 #[derive(Subcommand, Debug)]
 pub enum JKCommand {
+    /// Command to build a JK plugin
     Build(Build),
 }
 
 #[derive(Args, Debug)]
 pub struct Build {
-    /// Format of the output
-    #[arg(long)]
-    pub format: Option<String>,
+    #[arg(long, default_value = "none")]
+    pub format: Format,
+}
+
+use clap::ValueEnum;
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum Format {
+    /// Output in JSON format
+    Json,
+    /// No output format specified
+    None,
 }

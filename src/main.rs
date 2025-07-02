@@ -29,6 +29,11 @@ struct JkPluginMetadata {
     plugin_name: String,
 }
 
+#[derive(Debug, Serialize)]
+struct AexFileOutput {
+    aex_file: String,
+}
+
 fn main() {
     let Cargo::Input(input) = Cargo::parse();
     // let ostype = env::consts::OS;
@@ -82,16 +87,17 @@ fn main() {
                         eprintln!("Renamed DLL to: {}", new_dll_path.display());
                         eprintln!("Build succeeded.");
                         // check format argument
-                        if let Some(format) = build.format {
-                            if format == "json" {
-                                // If the format is json, we will output the aex file path in JSON format
-                                let output = serde_json::json!({
-                                    "aex_file": new_dll_path.to_string_lossy()
-                                });
-                                println!("{}", serde_json::to_string(&output).unwrap());
-                            } else {
-                                eprintln!("Unsupported format: {}", format);
-                                std::process::exit(1);
+                        match build.format {
+                            command::Format::Json => {
+                                let aex_file = AexFileOutput {
+                                    aex_file: new_dll_path.to_string_lossy().to_string(),
+                                };
+                                let output = serde_json::to_string(&aex_file)
+                                    .expect("Failed to serialize output to JSON");
+                                println!("{}", output);
+                            }
+                            command::Format::None => {
+                                // nothing to do
                             }
                         }
                     } else {
