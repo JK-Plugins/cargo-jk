@@ -19,13 +19,13 @@ struct Package {
 
 #[derive(Debug, Deserialize)]
 struct PackageMetadata {
-    aftereffects: AfterEffectsMetadata,
+    jk_plugin: JkPluginMetadata,
 }
 
 #[derive(Debug, Deserialize)]
-struct AfterEffectsMetadata {
-    buildname: String,
-    pluginname: String,
+struct JkPluginMetadata {
+    build_name: String,
+    plugin_name: String,
 }
 
 fn main() {
@@ -46,10 +46,10 @@ fn main() {
 
             // build name and plugin name
             // these are used to set the build name and plugin name
-            let buildname = cargo_toml.package.metadata.aftereffects.buildname;
-            let pluginname = cargo_toml.package.metadata.aftereffects.pluginname;
-            println!("Build Name: {}", buildname);
-            println!("Plugin Name: {}", pluginname);
+            let build_name = cargo_toml.package.metadata.jk_plugin.build_name;
+            let plugin_name = cargo_toml.package.metadata.jk_plugin.plugin_name;
+            println!("Build Name: {}", build_name);
+            println!("Plugin Name: {}", plugin_name);
             let mut command = Command::new("cargo");
             command.arg("build");
             command.arg("--message-format");
