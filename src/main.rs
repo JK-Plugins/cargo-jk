@@ -3,6 +3,7 @@ use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::env;
 use std::io;
 use std::process::Command;
@@ -56,6 +57,7 @@ fn main() {
             command.arg("json-render-diagnostics");
             command.stdout(Stdio::piped());
             println!("Executing: {:?}", command);
+
             match command.spawn() {
                 Ok(mut child) => {
                     let reader = io::BufReader::new(child.stdout.take().unwrap());
@@ -79,6 +81,17 @@ fn main() {
                         std::fs::rename(dllfilepath, &new_dll_path)
                             .expect("Failed to rename DLL file");
                         println!("Renamed DLL to: {}", new_dll_path.display());
+                        // if args contain --format json, print aex file path in JSON format
+                        if input.config.contains(&"--format".to_string())
+                            && input.config.contains(&"json".to_string())
+                        {
+                            let json_output = serde_json::json!({
+                                "aex_file": new_dll_path.to_string_lossy(),
+                            });
+                            println!("{}", json_output);
+                        } else {
+                            println!("AEX file created at: {}", new_dll_path.display());
+                        }
                         println!("Build succeeded.");
                     } else {
                         eprintln!("Build failed with status: {}", status);
