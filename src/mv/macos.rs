@@ -37,7 +37,8 @@ pub fn mv_command(mv: &MV) -> io::Result<()> {
     ))?;
     let target = target_dir.join(dirname);
 
-    dircpy::copy_dir(src, &target)?;
+    dircpy::copy_dir(src, &target)
+        .map_err(|e| io::Error::other(format!("Failed to move directory: {e}")))?;
 
     Ok(())
 }
