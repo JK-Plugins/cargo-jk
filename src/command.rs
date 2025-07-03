@@ -41,8 +41,7 @@ pub struct MV {
 }
 
 #[derive(Args, Debug)]
-pub struct Install {
-}
+pub struct Install {}
 
 use clap::ValueEnum;
 
