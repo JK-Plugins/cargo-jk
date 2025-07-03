@@ -32,6 +32,9 @@ pub enum JKCommand {
 pub struct Build {
     #[arg(long, default_value = "none")]
     pub format: Format,
+    /// Build artifacts in release mode, with optimizations
+    #[arg(long, default_value_t = false)]
+    pub release: bool,
 }
 
 #[derive(Args, Debug)]
@@ -41,7 +44,11 @@ pub struct MV {
 }
 
 #[derive(Args, Debug)]
-pub struct Install {}
+pub struct Install {
+    /// Build artifacts in release mode, with optimizations
+    #[arg(long, default_value_t = false)]
+    pub release: bool,
+}
 
 use clap::ValueEnum;
 
