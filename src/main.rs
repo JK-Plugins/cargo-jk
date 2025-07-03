@@ -1,6 +1,6 @@
+mod build;
 mod command;
 mod mv;
-mod post_build_process;
 
 use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
@@ -35,8 +35,8 @@ struct JkPluginMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct AexFileOutput {
-    aex_file: String,
+struct PluginOutput {
+    path: String,
 }
 
 fn main() {
@@ -87,20 +87,16 @@ fn main() {
                     }
                     let status = child.wait().expect("Failed to wait on child process");
                     if status.success() {
-                        let plugin_path = post_build_process::post_build_process(
-                            &build,
-                            &filename,
-                            &build_name,
-                            &plugin_name,
-                        );
+                        let plugin_path =
+                            build::post_build_process(&build, &filename, &build_name, &plugin_name);
                         eprintln!("Build succeeded.");
                         // check format argument
                         match build.format {
                             command::Format::Json => {
-                                let aex_file = AexFileOutput {
-                                    aex_file: plugin_path.to_string_lossy().to_string(),
+                                let plugin_output = PluginOutput {
+                                    path: plugin_path.to_string_lossy().to_string(),
                                 };
-                                let output = serde_json::to_string(&aex_file)
+                                let output = serde_json::to_string(&plugin_output)
                                     .expect("Failed to serialize output to JSON");
                                 println!("{}", output);
                             }
@@ -180,24 +176,25 @@ fn install_command(release: bool) {
                 std::process::exit(1);
             }
 
-            // Step 2: Parse the JSON output to get the aex file path
+            // Step 2: Parse the JSON output to get the plugin path
             let stdout = String::from_utf8_lossy(&output.stdout);
             eprintln!("Build output: {}", stdout);
 
-            match serde_json::from_str::<AexFileOutput>(&stdout) {
-                Ok(aex_output) => {
-                    let aex_file = &aex_output.aex_file;
-                    eprintln!("Built aex file: {}", aex_file);
+            match serde_json::from_str::<PluginOutput>(&stdout) {
+                Ok(plugin_output) => {
+                    let plugin_path = &plugin_output.path;
+                    eprintln!("Built aex file: {}", plugin_path);
 
                     // Step 3: Execute mv command
-                    let mv_cmd = format!("{} {} mv {}", cmd_prefix, cmd_args.join(" "), aex_file);
+                    let mv_cmd =
+                        format!("{} {} mv {}", cmd_prefix, cmd_args.join(" "), plugin_path);
                     eprintln!("Running: {}", mv_cmd);
 
                     let mut mv_command = Command::new(cmd_prefix);
                     for arg in &cmd_args {
                         mv_command.arg(arg);
                     }
-                    let mv_output = mv_command.arg("mv").arg(aex_file).output();
+                    let mv_output = mv_command.arg("mv").arg(plugin_path).output();
 
                     match mv_output {
                         Ok(mv_result) => {

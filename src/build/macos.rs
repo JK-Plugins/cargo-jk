@@ -70,8 +70,8 @@ pub fn post_build_process(
     if build.release {
         // # Build universal binary
         let target_dir = lib_dylib_dir.parent().unwrap();
-        let aarh64 = "x86_64-apple-darwin";
-        let x86_64 = "aarch64-apple-darwin";
+        let x86_64 = "x86_64-apple-darwin";
+        let aarh64 = "aarch64-apple-darwin";
 
         // rustup target add aarch64-apple-darwin
         Command::new("rustup")
