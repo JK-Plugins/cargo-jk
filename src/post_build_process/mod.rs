@@ -1,4 +1,4 @@
-// #[cfg(target_os = "windows")]
+#[cfg(target_os = "windows")]
 #[path = "windows.rs"]
 mod os_post_build_process;
 

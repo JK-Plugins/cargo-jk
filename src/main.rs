@@ -87,12 +87,27 @@ fn main() {
                     }
                     let status = child.wait().expect("Failed to wait on child process");
                     if status.success() {
-                        post_build_process::post_build_process(
+                        let plugin_path = post_build_process::post_build_process(
                             &build,
                             &filename,
                             &build_name,
                             &plugin_name,
                         );
+                        eprintln!("Build succeeded.");
+                        // check format argument
+                        match build.format {
+                            command::Format::Json => {
+                                let aex_file = AexFileOutput {
+                                    aex_file: plugin_path.to_string_lossy().to_string(),
+                                };
+                                let output = serde_json::to_string(&aex_file)
+                                    .expect("Failed to serialize output to JSON");
+                                println!("{}", output);
+                            }
+                            command::Format::None => {
+                                // nothing to do
+                            }
+                        }
                     } else {
                         eprintln!("Build failed with status: {}", status);
                         std::process::exit(1);
@@ -140,7 +155,12 @@ fn install_command(release: bool) {
 
     // Step 1: Execute build command
     let release_flag = if release { " --release" } else { "" };
-    let build_cmd = format!("{} {} build{} --format json", cmd_prefix, cmd_args.join(" "), release_flag);
+    let build_cmd = format!(
+        "{} {} build{} --format json",
+        cmd_prefix,
+        cmd_args.join(" "),
+        release_flag
+    );
     eprintln!("Running: {}", build_cmd);
 
     let mut build_command = Command::new(cmd_prefix);
@@ -151,10 +171,7 @@ fn install_command(release: bool) {
     if release {
         build_command.arg("--release");
     }
-    let build_output = build_command
-        .arg("--format")
-        .arg("json")
-        .output();
+    let build_output = build_command.arg("--format").arg("json").output();
 
     match build_output {
         Ok(output) => {
