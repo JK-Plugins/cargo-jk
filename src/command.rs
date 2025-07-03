@@ -33,7 +33,7 @@ pub struct Build {
     #[arg(long, default_value = "none")]
     pub format: Format,
     /// Build artifacts in release mode, with optimizations
-    #[arg(long)]
+    #[arg(long, default_value_t = false)]
     pub release: bool,
 }
 
@@ -46,7 +46,7 @@ pub struct MV {
 #[derive(Args, Debug)]
 pub struct Install {
     /// Build artifacts in release mode, with optimizations
-    #[arg(long)]
+    #[arg(long, default_value_t = false)]
     pub release: bool,
 }
 
