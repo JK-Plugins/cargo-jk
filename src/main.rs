@@ -63,6 +63,9 @@ fn main() {
             eprintln!("Plugin Name: {}", plugin_name);
             let mut command = Command::new("cargo");
             command.arg("build");
+            if build.release {
+                command.arg("--release");
+            }
             command.arg("--message-format");
             command.arg("json-render-diagnostics");
             command.stdout(Stdio::piped());
@@ -131,13 +134,13 @@ fn main() {
                 mv::elevate_self();
             }
         }
-        JKCommand::Install(_install) => {
-            install_command();
+        JKCommand::Install(install) => {
+            install_command(install.release);
         }
     }
 }
 
-fn install_command() {
+fn install_command(release: bool) {
     eprintln!("Starting install process...");
 
     // Detect if we're running in development mode (cargo run -- jk) or production mode (cargo jk)
@@ -151,15 +154,19 @@ fn install_command() {
     };
 
     // Step 1: Execute build command
-    let build_cmd = format!("{} {} build --format json", cmd_prefix, cmd_args.join(" "));
+    let release_flag = if release { " --release" } else { "" };
+    let build_cmd = format!("{} {} build{} --format json", cmd_prefix, cmd_args.join(" "), release_flag);
     eprintln!("Running: {}", build_cmd);
 
     let mut build_command = Command::new(cmd_prefix);
     for arg in &cmd_args {
         build_command.arg(arg);
     }
+    build_command.arg("build");
+    if release {
+        build_command.arg("--release");
+    }
     let build_output = build_command
-        .arg("build")
         .arg("--format")
         .arg("json")
         .output();
