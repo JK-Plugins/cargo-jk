@@ -184,7 +184,7 @@ fn install_command(release: bool) {
             match serde_json::from_str::<PluginOutput>(&stdout) {
                 Ok(plugin_output) => {
                     let plugin_path = &plugin_output.path;
-                    eprintln!("Built aex file: {}", plugin_path);
+                    eprintln!("Built plugin: {}", plugin_path);
 
                     // Step 3: Execute mv command
                     let mv_cmd =
