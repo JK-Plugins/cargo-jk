@@ -1,16 +1,14 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use crate::command::Build;
 
-use crate::command::{self, Build};
-
-pub fn post_build_process(
-    build: &Build,
-    filename: &Option<std::path::PathBuf>,
-    build_name: &str,
+pub fn post_build_process<P: AsRef<Path>>(
+    _build: &Build,
+    filename: P,
+    _package_name: &str,
     plugin_name: &str,
 ) -> PathBuf {
-    let dllfilepath = filename.as_ref().expect("No artifact filename found");
+    let dllfilepath = filename.as_ref().to_path_buf();
     let dllfiledir = dllfilepath.parent().unwrap();
     // rename the DLL file to the plugin name
     let new_dll_path = dllfiledir.join(&plugin_name).with_extension("aex");

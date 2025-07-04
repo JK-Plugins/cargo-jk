@@ -4,39 +4,43 @@ mod mv;
 
 use crate::command::{Cargo, JKCommand};
 use cargo_metadata::Message;
+use cargo_metadata::MetadataCommand;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::env;
 use std::io;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 
 #[derive(Debug, Deserialize)]
-struct CargoToml {
-    package: Package,
-}
-
-#[derive(Debug, Deserialize)]
-struct Package {
-    metadata: PackageMetadata,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackageMetadata {
-    jk_plugin: JkPluginMetadata,
-}
-
-#[derive(Debug, Deserialize)]
 struct JkPluginMetadata {
-    build_name: String,
     plugin_name: String,
+    identifier: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct PluginOutput {
     path: String,
+}
+
+fn package_for_cwd() -> cargo_metadata::Package {
+    let cwd = std::env::current_dir().unwrap();
+    let meta = MetadataCommand::new().no_deps().exec().unwrap();
+
+    let mut pkgs: Vec<_> = meta
+        .packages
+        .into_iter()
+        .filter(|p| {
+            let manifest_dir = p.manifest_path.parent().unwrap();
+            cwd.starts_with(manifest_dir)
+        })
+        .collect();
+
+    pkgs.sort_by_key(|p| p.manifest_path.components().count());
+    pkgs.pop().unwrap()
 }
 
 fn main() {
@@ -47,21 +51,21 @@ fn main() {
         JKCommand::Build(build) => {
             let _aesdk_root = env::var("AESDK_ROOT")
                 .expect("AESDK_ROOT is not defined as an environment variable");
+            let package = package_for_cwd();
 
-            // load Cargo.toml and read the metadata
-            let current_dir = env::current_dir().expect("Failed to get current directory");
-            let cargo_toml_path = current_dir.join("Cargo.toml");
-            let cargo_toml_content =
-                std::fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
-            let cargo_toml: CargoToml =
-                toml::from_str(&cargo_toml_content).expect("Failed to parse Cargo.toml");
+            let jk_pluging_metadata_value = package
+                .metadata
+                .get("jk_plugin")
+                .expect("no [package.metadata.jk_plugin] section in Cargo.toml")
+                .clone();
+            let jk_plugin_metadata: JkPluginMetadata =
+                serde_json::from_value(jk_pluging_metadata_value)
+                    .map_err(|e| {
+                        io::Error::other(format!("Failed to parse jk_plugin metadata: {}", e))
+                    })
+                    .unwrap();
 
-            // build name and plugin name
-            // these are used to set the build name and plugin name
-            let build_name = cargo_toml.package.metadata.jk_plugin.build_name;
-            let plugin_name = cargo_toml.package.metadata.jk_plugin.plugin_name;
-            eprintln!("Build Name: {}", build_name);
-            eprintln!("Plugin Name: {}", plugin_name);
+            eprintln!("Plugin Name: {}", jk_plugin_metadata.plugin_name);
             let mut command = Command::new("cargo");
             command.arg("build");
             if build.release {
@@ -74,7 +78,7 @@ fn main() {
             match command.spawn() {
                 Ok(mut child) => {
                     let reader = io::BufReader::new(child.stdout.take().unwrap());
-                    let mut filename: Option<std::path::PathBuf> = None;
+                    let mut filename: Option<PathBuf> = None;
                     for message in cargo_metadata::Message::parse_stream(reader) {
                         match message.unwrap() {
                             Message::CompilerArtifact(artifact) => {
@@ -85,10 +89,16 @@ fn main() {
                             _ => (), // Unknown message
                         }
                     }
+                    let filename = filename.expect("No artifact filename found after build");
+
                     let status = child.wait().expect("Failed to wait on child process");
                     if status.success() {
-                        let plugin_path =
-                            build::post_build_process(&build, &filename, &build_name, &plugin_name);
+                        let plugin_path: PathBuf = build::post_build_process(
+                            &build,
+                            &filename,
+                            &package.name,
+                            &jk_plugin_metadata,
+                        );
                         eprintln!("Build succeeded.");
                         // check format argument
                         match build.format {
@@ -150,15 +160,6 @@ fn install_command(release: bool) {
     };
 
     // Step 1: Execute build command
-    let release_flag = if release { " --release" } else { "" };
-    let build_cmd = format!(
-        "{} {} build{} --format json",
-        cmd_prefix,
-        cmd_args.join(" "),
-        release_flag
-    );
-    eprintln!("Running: {}", build_cmd);
-
     let mut build_command = Command::new(cmd_prefix);
     for arg in &cmd_args {
         build_command.arg(arg);
