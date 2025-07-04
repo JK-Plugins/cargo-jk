@@ -90,7 +90,6 @@ dependencies = [
  "plist",
  "serde",
  "serde_json",
- "toml",
  "windows",
 ]
 
