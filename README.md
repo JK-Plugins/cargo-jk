@@ -8,6 +8,24 @@ cargo-jkは、JKプラグイン（Adobe After Effectsプラグイン）を構築
 - `AESDK_ROOT`環境変数が設定されている必要があります
 - Cargo.tomlに`[package.metadata.jk_plugin]`セクションが設定されている必要があります
 
+## ヘルプ
+
+```
+Command to build JK plugins
+
+Usage: cargo jk [OPTIONS] <COMMAND>
+
+Commands:
+  build    Command to build a JK plugin
+  mv       Command to move a file
+  install  Command to build and install a JK plugin
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+      --config <CONFIG>
+  -h, --help             Print help
+```
+
 ## Cargo.tomlの設定
 
 プロジェクトのCargo.tomlファイルに以下の設定が必要です：
@@ -47,6 +65,16 @@ cargo jk build --release
 # JSON形式で出力
 cargo jk build --format json
 ```
+
+### cargo jk mv
+
+ビルドしたプラグインファイルを指定した場所に移動します。
+
+```bash
+cargo jk mv
+```
+
+このコマンドは、ビルドされたプラグインファイル（.aex）を適切な場所に移動するために使用されます。
 
 ### cargo jk install
 
