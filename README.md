@@ -74,7 +74,7 @@ cargo jk build --format json
 cargo jk mv
 ```
 
-このコマンドは、ビルドされたプラグインファイル（.aex）を適切な場所に移動するために使用されます。
+このコマンドは、ビルドされたプラグイン（.aex | .plugin）を適切な場所に移動するために使用されます。
 
 ### cargo jk install
 
@@ -127,7 +127,7 @@ cargo jk install --release
 
 ## プラグインの出力
 
-ビルドが成功すると、プラグインファイル（.aex）が生成されます。ファイル名は`[package.metadata.jk_plugin]`セクションの`plugin_name`設定に基づいて決定されます。
+ビルドが成功すると、プラグイン（.aex | .plugin）が生成されます。ファイル名は`[package.metadata.jk_plugin]`セクションの`plugin_name`設定に基づいて決定されます。
 
 ## トラブルシューティング
 
