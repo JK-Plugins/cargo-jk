@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  # mainにしかCIが走らない
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  # 手動でCIを走らせるためのトリガー
+  # これを使うと、GitHubのActionsタブから手動でCIを実行できる
+  workflow_dispatch:
+
+jobs:
+  # windows, macOSの2つのOSでテストを走らせる
+  test-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run a one-line script
+        run: |
+          cargo build
+          cargo test
+  
+  test-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run a one-line script
+        run: |
+          cargo build
+          cargo test
